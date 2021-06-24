@@ -6,7 +6,7 @@ import core.get_features as get_feats
 import core.get_rationales as get_rats
 import core.validate as val
 
-def generate_rationales():
+def analyse_features():
     make_line_imgs([0, 45, 90, 135], 60, 256, "random", "data/lines/criterion")
 
     class_datasets = [
@@ -37,7 +37,7 @@ def generate_rationales():
 
     print(most_fit_for_class)
 
-def validate_assembled_network():
+def assemble_and_validate_network():
     class_expectations, class_fitnesses, class_feature_map_idxs = get_feats.load_log("data/lines")
     ds = dataset.ValidationDataset("data/lines/validation", dataset.preprocess)
 
@@ -54,6 +54,6 @@ def validate_assembled_network():
     metrics = [val.get_ideal_vs_observed_class_expectations, val.get_max_expectation, val.get_most_extreme_observation]
     val.validate(classifier, dl, class_expectations, class_feature_map_idxs, metrics)
 
-generate_rationales()
-validate_assembled_network()
+analyse_features()
+assemble_and_validate_network()
 
