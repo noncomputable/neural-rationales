@@ -56,7 +56,7 @@ def forward_pass(model, class_dataloaders, feature_map_log):
             for j, batch in enumerate(class_dataloader):
                 if j % 10 == 0: print(j)
                 images, class_idxs = batch
-                logits = model(images)
+                model(images)
 
 def get_class_expectations(feature_map_log):
     """
@@ -86,6 +86,8 @@ def get_class_fitnesses(feature_map_class_expectations):
     """
     Get fitness of each feature map for each class of samples.
     A feature map's fitness for a class will be its expectation minus the max expectation of the *other* classes.
+    Also get the fitness, conv idx, and filter idx of the most fit feature map for each class, i.e. its
+    rationalizing feature map.
     """
     
     """
@@ -102,10 +104,21 @@ def get_class_fitnesses(feature_map_class_expectations):
         layer_all_class_fitnesses = []
         for class_j, (fitness, _, _) in enumerate(most_fit_feature_map_for_class):
             other_class_idxs = [i for i in range(len(most_fit_feature_map_for_class)) if i != class_j]
+            
+            """
+            #Get the max expectation for any feature map in this layer for every class besides j.
             max_expectations_for_other_classes = torch.max(
                 layer_feature_map_class_expectations[other_class_idxs], dim = 0
             ).values
             layer_class_fitnesses = layer_feature_map_class_expectations[class_j] - max_expectations_for_other_classes
+            """
+
+            #Get the mean expectation for any feature map in this layer for every class besides j.
+            mean_expectations_for_other_classes = torch.mean(
+                layer_feature_map_class_expectations[other_class_idxs], dim = 0
+            )
+            layer_class_fitnesses = (layer_feature_map_class_expectations[class_j] - mean_expectations_for_other_classes)**2
+            
             layer_all_class_fitnesses.append(layer_class_fitnesses)
             most_fit_feature_map_in_layer_for_class = torch.max(layer_class_fitnesses, dim = 0)
             if most_fit_feature_map_in_layer_for_class.values > fitness:

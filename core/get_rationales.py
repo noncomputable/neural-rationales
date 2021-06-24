@@ -45,7 +45,8 @@ def prune_ops_after_target(module, target_conv_idx, conv_idx = None, level = 0):
 
 def get_rationale(model, conv_idx):
     """
-    Extract a rationale from the network for the feature map of the conv_idxth convolution.
+    Extract a rationale for a class that has a rationalizing feature map
+    at the conv_idxth convolution.
     """
     
     model = copy.deepcopy(model)
@@ -90,7 +91,7 @@ def register_rationale_hooks(model, feature_map_log,
 def rationale_to_classifier_network(rationale, class_feature_map_idxs):
     """
     Expand a multi-class rationale into a classifier, using the averages of
-    each class's feature map as logits.
+    each class's rationalizing feature map as logits.
     """
 
     class ClassifierNetwork(torch.nn.Module):
@@ -115,7 +116,8 @@ def rationale_to_classifier_network(rationale, class_feature_map_idxs):
                  in self.class_feature_map_log]
             ).T
             
-            self.class_feature_map_log = [None for _ in range(len(class_feature_map_idxs))]
+            for class_idx in range(len(self.class_feature_map_log)):
+                self.class_feature_map_log[class_idx] = None
             
             return class_logits
             

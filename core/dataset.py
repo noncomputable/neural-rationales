@@ -3,10 +3,11 @@ from torch.utils.data import Dataset
 from torchvision.io import read_image
 from torchvision import transforms
 
+import os
 from PIL import Image
 import pandas as pd
 
-class Dataset(Dataset):
+class CriterionDataset(Dataset):
     def __init__(self, img_dir, annotations_file, label_names_file, only_class_id = None, transform=None):
         """
         Args:
@@ -39,6 +40,48 @@ class Dataset(Dataset):
             image = self.transform(image)
             
         return image, class_idx
+
+class Rotate:
+    def __init__(self, angle):
+        self.angle = angle
+
+    def __call__(self, x):
+        return transforms.functional.rotate(x, self.angle)
+
+class ValidationDataset(Dataset):
+    def __init__(self, img_dir, transform=None):
+        """
+        Args:
+        only_class_id - Only load data for the class with this id.
+        """
+        
+        self.img_dir = img_dir
+        self.transform = transform
+        self.class_transforms = [
+            Rotate(angle) for angle in [0, 45, 90, 135]
+        ]
+        
+    def __len__(self):
+        return len(os.listdir(self.img_dir))
+
+    def __getitem__(self, idx):        
+        class_idx = torch.randint(4, (1,))[0]
+        image = self.get_class_item(idx, class_idx)
+        
+        return image, class_idx
+
+    def get_class_item(self, img_idx, class_idx):
+        img_path = f"{self.img_dir}/{img_idx}.png"
+        image = Image.open(img_path)
+        if self.transform:
+            image = self.transform(image)
+        
+        class_transform = transforms.Compose([
+            self.class_transforms[class_idx.item()]
+        ])
+        image = class_transform(image)
+
+        return image
 
 preprocess = transforms.Compose([
     transforms.ToTensor(),
