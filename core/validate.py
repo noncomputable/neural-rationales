@@ -29,7 +29,7 @@ def validate(model, dataloader, class_expectations, class_feature_map_idxs, metr
 
 def get_feature_map_expectations_per_class(class_expectations, class_feature_map_idxs):
     """
-    Get the expectation of each class's feature map for each other class (including itself).
+    Get the prior expectation of each class's rationalizing feature map for each other class (including itself).
     """
 
     num_classes = len(class_feature_map_idxs)
@@ -47,7 +47,7 @@ def get_ideal_vs_observed_class_expectations(observed_expectations, class_expect
     """
     Get the difference between the observed feature map expectation
     and the ideal feature map expectations for each class, and
-    the idx of the most likely class unde this metric.
+    the idx of the most likely class under this metric.
     """
 
     all_feature_map_expectations = get_feature_map_expectations_per_class(class_expectations, class_feature_map_idxs)
@@ -60,7 +60,7 @@ def get_ideal_vs_observed_class_expectations(observed_expectations, class_expect
 
 def get_max_expectation(observed_expectations, class_expectations, class_feature_map_idxs):
     """
-    Get the max observed expectation and the idx of the most likely class unde this metric.
+    Get the max observed expectation and the idx of the most likely class under this metric.
     """
 
     max_observed = torch.max(observed_expectations, dim = 1)
