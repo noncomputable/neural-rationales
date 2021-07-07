@@ -31,17 +31,18 @@ def generate_rationales():
 
     get_feats.save_feature_maps("data/lines", feature_map_log, hooked_layers)
 
-    class_expectations, class_fitnesses, most_fit_for_class = get_feats.analyse_log(
+    class_stats, class_fitnesses, most_fit_for_class = get_feats.analyse_log(
         feature_map_log, save_dir = "data/lines"
     )
 
     print(most_fit_for_class)
 
 def validate_assembled_network():
-    class_expectations, class_fitnesses, class_feature_map_idxs = get_feats.load_log("data/lines")
-    ds = dataset.ValidationDataset("data/lines/validation", dataset.preprocess)
+    class_stats, class_fitnesses, class_feature_map_idxs = get_feats.load_analysis("data/lines")
+    class_expectations = class_stats["mean"]
 
-    n_samples = 50
+    ds = dataset.ValidationDataset("data/lines/validation", dataset.preprocess)
+    n_samples = 60
     
     dl = [ds[idx] for idx in torch.randint(len(ds), (n_samples,))]
     dl = [(d[0].unsqueeze(0), d[1].unsqueeze(0)) for d in dl]
@@ -54,6 +55,8 @@ def validate_assembled_network():
     metrics = [val.get_ideal_vs_observed_class_expectations, val.get_max_expectation, val.get_most_extreme_observation]
     val.validate(classifier, dl, class_expectations, class_feature_map_idxs, metrics)
 
-generate_rationales()
-validate_assembled_network()
+    return classifier
 
+if __name__ == "__main__":
+    generate_rationales()
+    validate_assembled_network()

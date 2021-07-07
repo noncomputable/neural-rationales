@@ -58,29 +58,49 @@ def forward_pass(model, class_dataloaders, feature_map_log):
                 images, class_idxs = batch
                 model(images)
 
-def get_class_expectations(feature_map_log):
+def get_class_stats(feature_map_log):
     """
-    Get average value of each feature map for each class of samples.
+    Get mean and std deviation of each feature map for each class of samples.
     """
 
     """
-    feature_map_class_expectations[i][j][m] := ave values of the mth feature map
+    feature_map_class_stats[stat][i][j][m] :=  stat of the mth feature map
                                                of the ith layer
                                                in the jth class
-    """ 
-    feature_map_class_expectations = []
+    """
 
+    n_layers = len(feature_map_log)
+    n_classes = len(feature_map_log[0])
+    stats = ["mean", "std", "skew", "kurtosis"]
+    feature_map_class_stats = {}
+    for stat in stats:
+        feature_map_class_stats[stat] = []
+        for i in range(n_layers):
+            n_filters = len(feature_map_log[i][0][0])
+            feature_map_class_stats[stat].append(torch.empty(n_classes, n_filters))
+    
     for i, layer_feature_maps in enumerate(feature_map_log):
-        layer = feature_map_log[i]
-        feature_map_class_expectations.append([])
         for j, layer_feature_maps_for_class in enumerate(layer_feature_maps):
             layer_feature_maps_for_class = torch.stack(layer_feature_maps_for_class)
             #Reduce over samples and features, only distinguish by feature maps.
-            feature_map_expectations_for_class = torch.mean(layer_feature_maps_for_class, dim = [0,2,3])
-            feature_map_class_expectations[-1].append(feature_map_expectations_for_class)
-        feature_map_class_expectations[-1] = torch.stack(feature_map_class_expectations[-1])
+            feature_map_class_stats["mean"][i][j] = torch.mean(layer_feature_maps_for_class, dim = [0,2,3])
+            #Put 1D tensor of means in same number of dims as tensor of feature maps.
+            broadcastable_means = feature_map_class_stats["mean"][i][j].unsqueeze(1).unsqueeze(1).unsqueeze(0)
+            diffs_for_class = layer_feature_maps_for_class - broadcastable_means
+            vars_for_class = torch.mean(torch.pow(diffs_for_class, 2.0), dim = [0,2,3])
+            feature_map_class_stats["std"][i][j] = torch.pow(vars_for_class, .5)
+            broadcastable_stds = feature_map_class_stats["std"][i][j].unsqueeze(1).unsqueeze(1).unsqueeze(0)
+            zscores_for_class = diffs_for_class / broadcastable_stds
+            feature_map_class_stats["skew"][i][j] = torch.mean(
+                torch.pow(zscores_for_class / broadcastable_stds, 3.0),
+                dim = [0,2,3]
+            )
+            feature_map_class_stats["kurtosis"][i][j] = torch.mean(
+                torch.pow(zscores_for_class / broadcastable_stds, 4.0),
+                dim = [0,2,3]
+            )
 
-    return feature_map_class_expectations
+    return feature_map_class_stats
 
 def get_class_fitnesses(feature_map_class_expectations):
     """
@@ -141,28 +161,28 @@ def analyse_log(feature_map_log, save_dir = None):
                                        for data sample k
                                        of class j
     
-    Returns: See docs for get_class_expectations and get_class_fitnesses.
+    Returns: See docs for get_class_stats and get_class_fitnesses.
     """
     
-    feature_map_class_expectations = get_class_expectations(feature_map_log)
+    feature_map_class_stats = get_class_stats(feature_map_log)
     feature_map_class_fitnesses, most_fit_feature_map_for_class = (
-        get_class_fitnesses(feature_map_class_expectations)
+        get_class_fitnesses(feature_map_class_stats["mean"])
     )
 
     if save_dir is not None:
-        torch.save(feature_map_class_expectations, f"{save_dir}/class_expectations.pt")
+        torch.save(feature_map_class_stats, f"{save_dir}/class_stats.pt")
         torch.save(feature_map_class_fitnesses, f"{save_dir}/class_fitnesses.pt")
         torch.save(most_fit_feature_map_for_class, f"{save_dir}/class_most_fit.pt")
 
-    return (feature_map_class_expectations, feature_map_class_fitnesses,
+    return (feature_map_class_stats, feature_map_class_fitnesses,
             most_fit_feature_map_for_class)
 
-def load_log(save_dir):
-    class_expectations = torch.load(f"{save_dir}/class_expectations.pt")
+def load_analysis(save_dir):
+    class_stats = torch.load(f"{save_dir}/class_stats.pt")
     class_fitnesses = torch.load(f"{save_dir}/class_fitnesses.pt")
     class_most_fit_feature_map = torch.load(f"{save_dir}/class_most_fit.pt")
 
-    return class_expectations, class_fitnesses, class_most_fit_feature_map
+    return class_stats, class_fitnesses, class_most_fit_feature_map
 
 def save_feature_maps(save_dir, feature_map_log, hooked_layers):
     torch.save(feature_map_log, f"{save_dir}/feature_maps.pt")
