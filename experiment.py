@@ -32,7 +32,7 @@ def analyse_features():
     get_feats.save_feature_maps("data/lines", feature_map_log, hooked_layers)
 
     class_stats, class_fitnesses, most_fit_for_class = get_feats.analyse_log(
-        feature_map_log, save_dir = "data/lines"
+        feature_map_log, get_feats.FitnessFunc.mean_deviation_fitness, save_dir = "data/lines"
     )
 
     print(most_fit_for_class)
@@ -58,5 +58,5 @@ def assemble_and_validate_network():
     return classifier
 
 if __name__ == "__main__":
-    generate_rationales()
-    validate_assembled_network()
+    analyse_features()
+    assemble_and_validate_network()

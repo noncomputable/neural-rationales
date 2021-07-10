@@ -102,12 +102,16 @@ def get_class_stats(feature_map_log):
 
     return feature_map_class_stats
 
-def get_class_fitnesses(feature_map_class_expectations):
+def get_class_fitnesses(feature_map_class_stats, fitness_func):
     """
     Get fitness of each feature map for each class of samples.
     A feature map's fitness for a class will be its expectation minus the max expectation of the *other* classes.
     Also get the fitness, conv idx, and filter idx of the most fit feature map for each class, i.e. its
     rationalizing feature map.
+
+    Args:
+    feature_map_class_stats - See get_class_stats.
+    fitness_func - F: (layer_feature_map_class_stats, class_idx, other_class_idxs) -> layer_fitnesses_for_class 
     """
     
     """
@@ -118,38 +122,65 @@ def get_class_fitnesses(feature_map_class_expectations):
     feature_map_class_fitnesses = []
 
     #most_fit_feature_map_for_class[j] := (fitness, layer index, feature map index)
-    most_fit_feature_map_for_class = torch.full((len(feature_map_class_expectations[0]), 3), -1)
+    num_classes = len(feature_map_class_stats["mean"][0])
+    most_fit_feature_map_for_class = torch.full((num_classes, 3), -1)
 
-    for i, layer_feature_map_class_expectations in enumerate(feature_map_class_expectations):
+    for layer_i in range(len(feature_map_class_stats)):
         layer_all_class_fitnesses = []
+        layer_feature_map_class_stats = {stat: feature_map_class_stats[stat][layer_i]
+                                         for stat in feature_map_class_stats}
         for class_j, (fitness, _, _) in enumerate(most_fit_feature_map_for_class):
-            other_class_idxs = [i for i in range(len(most_fit_feature_map_for_class)) if i != class_j]
-            
-            """
-            #Get the max expectation for any feature map in this layer for every class besides j.
-            max_expectations_for_other_classes = torch.max(
-                layer_feature_map_class_expectations[other_class_idxs], dim = 0
-            ).values
-            layer_class_fitnesses = layer_feature_map_class_expectations[class_j] - max_expectations_for_other_classes
-            """
-
-            #Get the mean expectation for any feature map in this layer for every class besides j.
-            mean_expectations_for_other_classes = torch.mean(
-                layer_feature_map_class_expectations[other_class_idxs], dim = 0
-            )
-            layer_class_fitnesses = (layer_feature_map_class_expectations[class_j] - mean_expectations_for_other_classes)**2
-            
+            other_class_idxs = [k for k in range(len(most_fit_feature_map_for_class)) if k != class_j]
+            layer_class_fitnesses = fitness_func(layer_feature_map_class_stats, class_j, other_class_idxs)
             layer_all_class_fitnesses.append(layer_class_fitnesses)
             most_fit_feature_map_in_layer_for_class = torch.max(layer_class_fitnesses, dim = 0)
             if most_fit_feature_map_in_layer_for_class.values > fitness:
                 most_fit_feature_map_for_class[class_j, 0] = most_fit_feature_map_in_layer_for_class.values
-                most_fit_feature_map_for_class[class_j, 1] = i
+                most_fit_feature_map_for_class[class_j, 1] = layer_i
                 most_fit_feature_map_for_class[class_j, 2] = most_fit_feature_map_in_layer_for_class.indices
         feature_map_class_fitnesses.append(torch.stack(layer_all_class_fitnesses))
 
     return feature_map_class_fitnesses, most_fit_feature_map_for_class
 
-def analyse_log(feature_map_log, save_dir = None):
+class FitnessFunc:
+    """
+    Methods to compute fitness for each feature map in a layer for a certain class,
+    as a function of statistics of those feature maps for each class.
+    
+    Args:
+    layer_feature_map_class_stats - Dict where ...[stat][j][m] :=
+        stat of the mth feature map for the jth class of samples.
+    class_idx - Index of the class to compute fitnesses for.
+    other_class_idxs - Indices of all the other classes the fitness will be compared to.
+    """
+
+    @staticmethod
+    def top_expectation_gap_fitness(layer_feature_map_class_stats, class_idx, other_class_idxs):
+        """
+        Get the difference between the expectations of feature maps in a layer for a given class
+        and the max expectations of the feature maps in that layer among all the other classes.
+        i.e. how much bigger the given class's expectation is than the biggest expectation among the others.
+        """
+
+        #Get the max expectation for any feature map in this layer for every class besides j.
+        max_expectations_for_other_classes = torch.max(
+            layer_feature_map_class_stats["mean"][other_class_idxs], dim = 0
+        ).values
+        layer_class_fitnesses = layer_feature_map_class_stats["mean"][class_idx] - max_expectations_for_other_classes
+
+        return layer_class_fitnesses
+
+    @staticmethod
+    def mean_deviation_fitness(layer_feature_map_class_stats, class_idx, other_class_idxs):
+        #Get the mean expectation for any feature map in this layer for every class besides j.
+        mean_expectations_for_other_classes = torch.mean(
+            layer_feature_map_class_stats["mean"][other_class_idxs], dim = 0
+        )
+        layer_class_fitnesses = (layer_feature_map_class_stats["mean"][class_idx] - mean_expectations_for_other_classes)**2
+        
+        return layer_class_fitnesses
+
+def analyse_log(feature_map_log, fitness_func, save_dir = None):
     """
     Analyse a feature map log to see the relationship between different
     classes and feature maps.
@@ -160,13 +191,15 @@ def analyse_log(feature_map_log, save_dir = None):
                                        of the ith layer
                                        for data sample k
                                        of class j
+    fitness_func - See FitnessFunc docs.
+    save_dir - 
     
     Returns: See docs for get_class_stats and get_class_fitnesses.
     """
     
     feature_map_class_stats = get_class_stats(feature_map_log)
     feature_map_class_fitnesses, most_fit_feature_map_for_class = (
-        get_class_fitnesses(feature_map_class_stats["mean"])
+        get_class_fitnesses(feature_map_class_stats, fitness_func)
     )
 
     if save_dir is not None:
