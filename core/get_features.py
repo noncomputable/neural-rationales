@@ -125,7 +125,8 @@ def get_class_fitnesses(feature_map_class_stats, fitness_func):
     num_classes = len(feature_map_class_stats["mean"][0])
     most_fit_feature_map_for_class = torch.full((num_classes, 3), -1)
 
-    for layer_i in range(len(feature_map_class_stats)):
+    num_layers = len(feature_map_class_stats["mean"])
+    for layer_i in range(num_layers):
         layer_all_class_fitnesses = []
         layer_feature_map_class_stats = {stat: feature_map_class_stats[stat][layer_i]
                                          for stat in feature_map_class_stats}
@@ -149,9 +150,13 @@ class FitnessFunc:
     
     Args:
     layer_feature_map_class_stats - Dict where ...[stat][j][m] :=
-        stat of the mth feature map for the jth class of samples.
+        stat of the mth feature map of the given layer for the jth class of samples.
     class_idx - Index of the class to compute fitnesses for.
     other_class_idxs - Indices of all the other classes the fitness will be compared to.
+    
+    Returns:
+        1D array where ...[m] is the fitness of the mth feature map of the given layer for
+        the given class.
     """
 
     @staticmethod
@@ -176,6 +181,22 @@ class FitnessFunc:
         mean_expectations_for_other_classes = torch.mean(
             layer_feature_map_class_stats["mean"][other_class_idxs], dim = 0
         )
+        layer_class_fitnesses = (layer_feature_map_class_stats["mean"][class_idx] - mean_expectations_for_other_classes)**2
+        
+        return layer_class_fitnesses
+
+    @staticmethod
+    def sum_KL_fitness(layer_feature_map_class_stats, class_idx, other_class_idxs):
+        #Get the sum of KLs for any feature map in this layer for every class besides j.
+        std_ratio = layer_feature_map_class_stats["std"][other_class_idx] / layer_feature_map_class_stats["std"][class_idx] 
+        mean_sqr_diff = (layer_feature_map_class_stats["mean"][class_idx] - layer_feature_map_class_stats["mean"][other_class_idx])**2
+        numerator = layer_feature_map_class_stats["std"][class_idx]**2 + mean_sqr_diff
+        denominator = 2 * layer_feature_map_class_stats["std"][other_class_idx]
+        term_1 = torch.log(std_ratio)
+        term_2 = numerator / denominator
+        term_3 = -1/2
+        kls_between_class_and_others = term_1 + term_2 + term_3
+        sum_kls_between_class_and_others = torch.sum(kls_between_class_and_others)
         layer_class_fitnesses = (layer_feature_map_class_stats["mean"][class_idx] - mean_expectations_for_other_classes)**2
         
         return layer_class_fitnesses

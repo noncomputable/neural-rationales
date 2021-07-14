@@ -53,9 +53,9 @@ def assemble_and_validate_network():
     ClassifierNetwork = get_rats.rationale_to_classifier_network(multi_class_rationale, class_feature_map_idxs)
     classifier = ClassifierNetwork()
     metrics = [val.get_ideal_vs_observed_class_expectations, val.get_max_expectation, val.get_most_extreme_observation]
-    val.validate(classifier, dl, class_expectations, class_feature_map_idxs, metrics)
+    num_correct, num_tries = val.validate(classifier, dl, class_expectations, class_feature_map_idxs, metrics)
 
-    return classifier
+    return num_correct, num_tries, classifier
 
 if __name__ == "__main__":
     analyse_features()
