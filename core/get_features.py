@@ -14,6 +14,7 @@ def get_feature_map_recorder(feature_map_log):
     """
 
     def record_feature_map(module, input, output):
+        print(f"recording layer {module.id} with output shape {output.shape}!!")
         feature_map_log[module.id][-1].extend(list(output))
 
     return record_feature_map
@@ -49,6 +50,8 @@ def forward_pass(model, class_dataloaders, feature_map_log):
     model.eval()
     with torch.no_grad():
          for i, class_dataloader in enumerate(class_dataloaders):
+            print("passing ", i)
+            print(len(class_dataloader))
             #Add a list for feature maps for this class at each layer.
             for layer in feature_map_log:
                  layer.append([])
